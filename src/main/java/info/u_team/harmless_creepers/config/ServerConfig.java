@@ -24,7 +24,7 @@ public class ServerConfig {
 	
 	private ServerConfig(Builder builder) {
 		builder.comment("Server configuration settings").push("server");
-		blockBreaking = builder.comment("Allow breaking blocks from creeper explosions").define("blockBreaking", true);
+		blockBreaking = builder.comment("Allow breaking blocks from creeper explosions").define("blockBreaking", false);
 		builder.pop();
 	}
 	
