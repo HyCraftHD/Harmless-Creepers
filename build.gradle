@@ -1,0 +1,242 @@
+import de.undercouch.gradle.tasks.download.Download
+import org.apache.tools.ant.filters.ReplaceTokens
+
+buildscript {
+	repositories {
+		maven { url = "https://repo.u-team.info" }
+		jcenter()
+	}
+	dependencies {
+		classpath "info.u-team.curse_gradle_uploader:curse_gradle_uploader:1.4.0"
+	}
+}
+
+plugins {
+	id "com.github.johnrengelman.shadow" version "1.2.3"
+	id "de.undercouch.download" version "3.1.1"
+}
+
+apply from: "https://gradle-files.u-team.info/load-config.gradle"
+apply from: "https://gradle-files.u-team.info/project-methods.gradle"
+apply from: "https://gradle-files.u-team.info/sign-jar.gradle"
+apply from: "https://gradle-files.u-team.info/sign-jar.gradle"
+
+apply plugin: "java"
+apply plugin: "eclipse"
+apply plugin: "info.u_team.curse_gradle_uploader"
+apply plugin: "maven"
+
+loadConfig()
+
+repositories {
+	mavenLocal()
+	mavenCentral()
+}
+
+group = "info.u-team.bukkit"
+archivesBaseName = "${config.plugin.name}-bukkit"
+version = "${config.plugin.version}"
+
+sourceCompatibility = targetCompatibility = "1.8"
+
+configurations {
+	plugin {
+		transitive = false
+	}
+	compileOnly.extendsFrom(plugin)
+}
+
+dependencies {
+	compile group: "org.spigotmc", name: "spigot-api", version: config.spigot.version
+	compile group: "org.spigotmc", name: "spigot", version: config.spigot.version
+}
+
+processResources {
+	filter ReplaceTokens, tokens: [
+		"spigot-version": config.spigot.version,
+		"plugin-version": config.plugin.version
+	]
+}
+
+compileJava.dependsOn {
+	buildSpigot
+}
+
+task setupDevServer(dependsOn: "extractServerJar", type: Copy) {
+	from "config/serverfiles"
+	into "run"
+}
+
+task extractServerJar(type: Copy) {
+	from {
+		configurations.runtime
+	}
+	include("spigot-" + config.spigot.version + ".jar")
+	rename("spigot-" + config.spigot.version + ".jar", "server.jar")
+	into "run"
+}
+
+task copyPluginToTestserver(dependsOn: ["build"], type: Copy) {
+	from "${buildDir}/libs"
+	into "run/plugins"
+}
+
+task extractDependencyPlugins(type: Copy) {
+	from {
+		configurations.plugin
+	}
+	into "run/plugins"
+}
+
+task prepareDevServer(dependsOn: ["buildSpigot", "setupDevServer", "copyPluginToTestserver", "extractDependencyPlugins"]) {}
+
+task startDevServer(dependsOn: [prepareDevServer], type: JavaExec) {
+	classpath configurations.compile, configurations.runtime
+	main = "org.bukkit.craftbukkit.Main"
+	workingDir = "run"
+	standardInput = System.in
+}
+
+def spigotBuildDir = new File("$buildDir/spigot/")
+
+task setupWorkspace(dependsOn: ["buildSpigot"]) {
+}
+
+task buildSpigot(type: JavaExec) {
+	if (hasSpigot()) {
+		enabled = false;
+		dependsOn = [];
+	} else {
+		dependsOn = ["cleanSpigotBuild", "downloadBuildTool"]
+	}
+	main = "-jar"
+	args new File(spigotBuildDir, "BuildTools.jar").getAbsolutePath(), "--rev", config.minecraft.version
+	workingDir = spigotBuildDir
+}
+
+task downloadBuildTool(type: Download) {
+	spigotBuildDir.mkdirs()
+	src "https://hub.spigotmc.org/jenkins/job/BuildTools/lastSuccessfulBuild/artifact/target/BuildTools.jar"
+	dest new File(spigotBuildDir, "BuildTools.jar")
+}
+
+task cleanSpigotBuild() {
+	spigotBuildDir.deleteDir()
+}
+
+def hasSpigot() {
+	def groupId = "org.spigotmc"
+	def version = config.spigot.version
+	return hasArtifact(groupId, "spigot-api", version) && hasArtifact(groupId, "spigot", version)
+}
+
+def hasArtifact(groupId, artifactId, version) {
+	def localMavenRepo = new File(new File(ant.properties["user.home"] as String), ".m2/repository/")
+	def file = new File(localMavenRepo, groupId.replace(".", "/") + "/" + artifactId + "/" + version + "/")
+	return file.exists()
+}
+
+def generateChangelogUrl() {
+	String url = "https://github.com/MC-U-Team/${config.github.name}/blob/${config.github.branch}/CHANGELOG.md"
+	String version = "${project.version}".replace(".", "")
+	String date =new Date().format("yyyy-MM-dd");
+	return url + "#" + version + "---" + date
+}
+
+artifacts {
+	archives jar
+}
+
+signAllJars()
+
+curseforge {
+	afterEvaluate {
+		tasks."curseforge${config.curse.id}".onlyIf {
+			getValue("token") != null
+		}
+	}
+	
+	tasks.curseforge.dependsOn build
+	
+	apiKey = getValueDefault("token")
+	
+	project {
+		id = config.curse.id
+		releaseType = config.curse.type
+		
+		addGameVersion "1.16"
+		addGameVersion "1.15"
+		addGameVersion "1.14"
+		
+		options {
+			forgeGradleIntegration = false
+			javaVersionAutoDetect = false
+			apiBaseUrl = "https://dev.bukkit.org"
+		}
+		
+		mainArtifact(jar) {
+			displayName = "${config.curse.display}-${project.version}"
+			changelogType = "html"
+			changelog = "<a href=\"" + generateChangelogUrl() + "\">Changelog of ${project.version}</a>"
+		}
+	}
+}
+
+uploadArchives {
+	onlyIf {
+		getValue("mavenpass") != null
+	}
+	
+	tasks.uploadArchives.dependsOn build
+	
+	repositories {
+		mavenDeployer {
+			repository(url: "https://repo.u-team.info") {
+				authentication(userName: "maven", password: getValue("mavenpass"))
+			}
+			pom {
+				groupId = project.group
+				artifactId = project.archivesBaseName
+				version = project.version
+				project {
+					name project.archivesBaseName
+					packaging "jar"
+					description "${config.github.name}"
+					url "https://github.com/MC-U-Team/${config.github.name}"
+					scm {
+						url "https://github.com/MC-U-Team/${config.github.name}"
+						connection "scm:git:git://github.com/MC-U-Team/${config.github.name}.git"
+						developerConnection "scm:git:git@github.com:MC-U-Team/${config.github.name}.git"
+					}
+					issueManagement {
+						system "github"
+						url "https://github.com/MC-U-Team/${config.github.name}/issues"
+					}
+					licenses {
+						license {
+							name "Apache License 2.0"
+							url "https://github.com/MC-U-Team/${config.github.name}/blob/${config.github.branch}/LICENSE"
+							distribution "repo"
+						}
+					}
+					
+					developers {
+						developer {
+							name "HyCraftHD"
+						}
+					}
+				}
+				setConfigurations(null) // Prevent all dependencies in the pom file
+			}
+		}
+	}
+}
+
+task uploadBoth {
+	tasks.uploadBoth.dependsOn build
+	tasks.uploadBoth.dependsOn uploadArchives
+	tasks.uploadBoth.dependsOn "curseforge${config.curse.id}"
+	doLast {
+		println "Published both"
+	}
+}
