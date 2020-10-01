@@ -8,7 +8,7 @@
 ![Discord](https://img.shields.io/discord/297104769649213441?label=Discord)
 ](https://discordapp.com/invite/QXbWS36)
 
-### This mod adds a command to disable creeper explosion block damage
+### This mod adds a command to disable creeper explosion block damage.
 
 - Download on [curseforge](https://www.curseforge.com/minecraft/mc-mods/harmless-creepers).  
 - Find more information on our [website](https://u-team.info/mods/harmlesscreepers).
