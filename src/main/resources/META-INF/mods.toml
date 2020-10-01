@@ -1,0 +1,36 @@
+modLoader="javafml"
+loaderVersion="[34,)"
+issueTrackerURL="https://github.com/MC-U-Team/Harmless-Creepers/issues"
+displayURL="https://u-team.info/mods/harmlesscreepers"
+logoFile="logo.png"
+license="Apache-2.0 License"
+credits="Team U-Team"
+authors="HyCraftHD"
+
+[[mods]]
+	modId="harmlesscreepers"
+	version="${file.jarVersion}"
+	displayName="Harmless Creepers"
+	updateJSONURL="https://api.u-team.info/update/harmlesscreepers.json"
+	description="This mod adds a command to disable creeper explosion block damage."
+	
+	[[dependencies.harmlesscreepers]]
+	    modId="forge"
+	    mandatory=true
+	    versionRange="[34.0.1,)"
+	    ordering="NONE"
+	    side="BOTH"
+	
+	[[dependencies.harmlesscreepers]]
+	    modId="minecraft"
+	    mandatory=true
+	    versionRange="[1.16.3]"
+	    ordering="NONE"
+	    side="BOTH"
+	    
+	[[dependencies.harmlesscreepers]]
+	    modId="uteamcore"
+	    mandatory=true
+	    versionRange="[3.1.9.181,)"
+	    ordering="NONE"
+	    side="BOTH"
